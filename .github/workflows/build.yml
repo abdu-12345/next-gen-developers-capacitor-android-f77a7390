@@ -1,0 +1,118 @@
+name: Build Android App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build web assets
+      run: npm run build
+      
+    - name: Add Android platform
+      run: npx cap add android
+      
+    - name: Sync Capacitor
+      run: npx cap sync android
+      
+    - name: Grant execute permission for gradlew
+      run: chmod +x android/gradlew
+      
+    - name: Build Android APK (Debug)
+      working-directory: android
+      run: ./gradlew assembleDebug
+      
+    - name: Build Android AAB (Release)
+      working-directory: android
+      run: ./gradlew bundleRelease
+      
+    - name: List build outputs
+      run: |
+        echo "APK files:"
+        find android -name "*.apk" -type f
+        echo "AAB files:"
+        find android -name "*.aab" -type f
+      
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v1.0.0-${{ github.run_number }}
+        release_name: Next Gen Developers v1.0.0.${{ github.run_number }}
+        body: |
+          📱 **Next Gen Developers - Native Android App**
+          
+          🚀 **Built with Capacitor** - Real native mobile app with device features
+          📦 **Bundle ID:** com.example.myapp
+          🔢 **Version:** 1.0.0.${{ github.run_number }}
+          
+          **Available Downloads:**
+          - **APK (Debug)**: Ready to install on Android devices for testing
+          - **AAB (Release)**: Ready for Google Play Store upload
+          
+          **Native Features:**
+          ✅ Camera access
+          ✅ GPS/Location services
+          ✅ Push notifications
+          ✅ Device storage
+          ✅ Native UI components
+          ✅ Offline functionality
+          
+          **Installation Instructions (APK):**
+          1. Download the APK file below
+          2. Enable "Install from Unknown Sources" in Android settings
+          3. Install the APK on your Android device
+          4. Enjoy the native mobile app experience!
+          
+          **Google Play Store (AAB):**
+          Use the AAB file to upload to Google Play Console for store distribution.
+          
+          This is a real native Android app built with Capacitor framework.
+        draft: false
+        prerelease: false
+        
+    - name: Upload APK to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: android/app/build/outputs/apk/debug/app-debug.apk
+        asset_name: NextGenDevelopers-v1.0.0-debug.apk
+        asset_content_type: application/vnd.android.package-archive
+        
+    - name: Upload AAB to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: android/app/build/outputs/bundle/release/app-release.aab
+        asset_name: NextGenDevelopers-v1.0.0-release.aab
+        asset_content_type: application/octet-stream
